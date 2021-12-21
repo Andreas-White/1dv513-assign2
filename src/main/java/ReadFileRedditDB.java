@@ -1,0 +1,272 @@
+import com.google.gson.Gson;
+import org.apache.commons.compress.compressors.CompressorException;
+import org.apache.commons.compress.compressors.CompressorInputStream;
+import org.apache.commons.compress.compressors.CompressorStreamFactory;
+
+import java.io.*;
+import java.sql.*;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.HashSet;
+
+public class ReadFileRedditDB {
+
+    private final static String PATH = "C:\\Users\\PC\\Downloads\\RC_2011-07.bz2";
+
+    public static void main(String[] args) {
+
+        BufferedReader br = getBufferedReaderForCompressedFile(PATH);
+        HashSet<String> subKeys = new HashSet<>();
+        try {
+
+            // Connecting to mysql
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            Connection conn = DriverManager.getConnection(
+                    "jdbc:mysql://127.0.0.1:3306/redditdbtest", "root", "");
+            System.out.println("Connected");
+            double timeStart = System.currentTimeMillis();
+
+            int counter = 0;
+            while (true && counter < 100) {
+                double innerTimeStart = System.currentTimeMillis();
+                assert br != null;
+                String jsonString = br.readLine();
+                if (jsonString == null) break;
+
+                //System.out.println(jsonString);
+                Gson gson = new Gson();
+
+                RedditPost post = gson.fromJson(jsonString, RedditPost.class);
+
+                // Insert in redditdb1 with constraints
+//                if (!doesExist(conn, post)) {
+//                    insertSubreddit(conn, post);
+//                }
+//                insertComments(conn, post);
+
+                // Insert in redditdb2 without constraints
+//                insertComments2(conn,post);
+
+
+                // Insert in redditdb3 without constraints
+                if (!subKeys.contains(post.getSubreddit_id())) {
+                    insertSubreddit3(conn, post);
+                    subKeys.add(post.getSubreddit_id());
+                }
+                insertComments3(conn, post);
+
+                double innerTimeEnd = System.currentTimeMillis();
+                counter++;
+
+                if (((innerTimeEnd - innerTimeStart) / 1000) > 1) {
+                    System.out.println("The insertion at position " + counter +" took: " +
+                            (innerTimeEnd - innerTimeStart) / 1000 + " seconds in total");
+                }
+
+//                if(counter % 1000 == 0) {
+//                    System.out.println("There were 1000 insertions in " + (innerTimeEnd - innerTimeStart) / 1000
+//                            + " seconds");
+//                }
+            }
+
+            double timeEnd = System.currentTimeMillis();
+
+            System.out.println("It took: " + (timeEnd - timeStart) / 1000 + " seconds in total");
+            System.out.println("There are " + counter + " comments in total");
+
+        } catch (IOException | ClassNotFoundException | SQLException e) {
+            //e.printStackTrace();
+            System.out.println("Duplicate");
+        }
+
+    }
+
+    public static void insertSubreddit(Connection connection, RedditPost post) {
+        try {
+            String sql = "INSERT INTO `subreddit`(`subreddit_id`, `subreddit_name`) VALUES (?,?)";
+
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setString(1, post.getSubreddit_id());
+            preparedStatement.setString(2, post.getSubreddit());
+
+            // execute the preparedStatement
+            preparedStatement.execute();
+
+            //System.out.println("insertion in subreddit was successful");
+            preparedStatement.close();
+        } catch (SQLException throwable) {
+            throwable.printStackTrace();
+        }
+    }
+
+    public static void insertSubreddit3(Connection connection, RedditPost post) {
+        try {
+            String sql = "INSERT INTO `subreddit`(`subreddit_id`, `subreddit`) VALUES (?,?)";
+
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setString(1, post.getSubreddit_id());
+            preparedStatement.setString(2, post.getSubreddit());
+
+            // execute the preparedStatement
+            preparedStatement.execute();
+
+            //System.out.println("insertion in subreddit was successful");
+            preparedStatement.close();
+        } catch (SQLException throwable) {
+            throwable.printStackTrace();
+        }
+    }
+
+    public static boolean doesExist(Connection connection, RedditPost post) {
+        try {
+
+            String sql = "SELECT `subreddit_id`, `subreddit_name` FROM `subreddit` WHERE  `subreddit_id`=?";
+
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setString(1, post.getSubreddit_id());
+
+            // execute the preparedStatement and return the resultSet object generated by the query
+            ResultSet rs = preparedStatement.executeQuery();
+
+            // returns true if there is already a record with that id
+            if (rs.next()) {
+                return true;
+            }
+
+            //System.out.println("insertion in subreddit was successful");
+            preparedStatement.close();
+        } catch (SQLException throwable) {
+            throwable.printStackTrace();
+        }
+        return false;
+    }
+
+    public static boolean doesExist3(Connection connection, RedditPost post) {
+        try {
+
+            String sql = "SELECT `subreddit_id`, `subreddit` FROM `subreddit` WHERE  `subreddit_id`=?";
+
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setString(1, post.getSubreddit_id());
+
+            // execute the preparedStatement and return the resultSet object generated by the query
+            ResultSet rs = preparedStatement.executeQuery();
+
+            // returns true if there is already a record with that id
+            if (rs.next()) {
+                return true;
+            }
+
+            //System.out.println("insertion in subreddit was successful");
+            preparedStatement.close();
+        } catch (SQLException throwable) {
+            throwable.printStackTrace();
+        }
+        return false;
+    }
+
+    public static void insertComments(Connection connection, RedditPost post) {
+        try {
+            String sql = "INSERT INTO `comments`(`id`, `parent_id`, `link_id`, `name`, `author`, `subreddit_id`, `body`, `score`,`created_utc`) VALUES (?,?,?,?,?,?,?,?,?)";
+
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setString(1, post.getId());
+            preparedStatement.setString(2, post.getParent_id());
+            preparedStatement.setString(3, post.getLink_id());
+            preparedStatement.setString(4, post.getName());
+            preparedStatement.setString(5, post.getAuthor());
+            preparedStatement.setString(6, post.getSubreddit_id());
+            preparedStatement.setString(7, post.getBody());
+            preparedStatement.setInt(8, post.getScore());
+            preparedStatement.setTimestamp(9, toDate(post.getCreated_utc()));
+
+
+            // execute the preparedStatement
+            preparedStatement.execute();
+
+            //System.out.println("insertion in comments was successful");
+            preparedStatement.close();
+        } catch (SQLException throwable) {
+            throwable.printStackTrace();
+        }
+    }
+
+    public static void insertComments2(Connection connection, RedditPost post) {
+        try {
+            String sql = "INSERT INTO `comments`(`id`, `parent_id`, `link_id`, `name`, `author`,  `body`,`subreddit_id`,`subreddit`, `score`,`created_utc`) VALUES (?,?,?,?,?,?,?,?,?,?)";
+
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setString(1, post.getId());
+            preparedStatement.setString(2, post.getParent_id());
+            preparedStatement.setString(3, post.getLink_id());
+            preparedStatement.setString(4, post.getName());
+            preparedStatement.setString(5, post.getAuthor());
+            preparedStatement.setString(6, post.getBody());
+            preparedStatement.setString(7, post.getSubreddit_id());
+            preparedStatement.setString(8, post.getSubreddit());
+            preparedStatement.setInt(9, post.getScore());
+            preparedStatement.setString(10, post.getCreated_utc());
+
+
+            // execute the preparedStatement
+            preparedStatement.execute();
+
+            //System.out.println("insertion in comments was successful");
+            preparedStatement.close();
+        } catch (SQLException throwable) {
+            throwable.printStackTrace();
+        }
+    }
+
+    public static void insertComments3(Connection connection, RedditPost post) {
+        try {
+            String sql = "INSERT INTO `comments`(`id`, `parent_id`, `link_id`, `name`, `author`, `body`, `subreddit_id`, `score`,`created_utc`) VALUES (?,?,?,?,?,?,?,?,?)";
+
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setString(1, post.getId());
+            preparedStatement.setString(2, post.getParent_id());
+            preparedStatement.setString(3, post.getLink_id());
+            preparedStatement.setString(4, post.getName());
+            preparedStatement.setString(5, post.getAuthor());
+            preparedStatement.setString(6, post.getBody());
+            preparedStatement.setString(7, post.getSubreddit_id());
+            preparedStatement.setInt(8, post.getScore());
+            preparedStatement.setTimestamp(9, toDate(post.getCreated_utc()));
+
+
+            // execute the preparedStatement
+            preparedStatement.execute();
+
+            //System.out.println("insertion in comments was successful");
+            preparedStatement.close();
+        } catch (SQLException throwable) {
+            throwable.printStackTrace();
+        }
+    }
+
+    public static Timestamp toDate(String utc) {
+
+        long time = Long.parseLong(utc);
+        ZonedDateTime utc1 = Instant.ofEpochSecond(time).atZone(ZoneOffset.UTC);
+
+        Timestamp timestamp = Timestamp.valueOf(utc1.toLocalDateTime());
+        return timestamp;
+    }
+
+    public static BufferedReader getBufferedReaderForCompressedFile(String fileIn) {
+
+        try {
+            FileInputStream fin = new FileInputStream(fileIn);
+            BufferedInputStream bis = new BufferedInputStream(fin);
+            CompressorInputStream input = new CompressorStreamFactory().createCompressorInputStream(bis);
+
+            System.out.println("decompression was successful");
+            return new BufferedReader(new InputStreamReader(input));
+        } catch (FileNotFoundException | CompressorException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+}
