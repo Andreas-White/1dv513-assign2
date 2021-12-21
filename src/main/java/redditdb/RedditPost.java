@@ -1,3 +1,5 @@
+package redditdb;
+
 public class RedditPost {
 
     private String id;

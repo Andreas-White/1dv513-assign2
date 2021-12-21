@@ -1,3 +1,5 @@
+package redditdb;
+
 import com.google.gson.Gson;
 import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorInputStream;
